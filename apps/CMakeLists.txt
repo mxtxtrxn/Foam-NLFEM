@@ -1,0 +1,2 @@
+add_executable(single_element_test single_element_test.cpp)
+target_link_libraries(single_element_test PRIVATE foam_core)

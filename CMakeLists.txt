@@ -33,8 +33,10 @@ add_library(foam_core STATIC
   src/mesh/mesh_generators.cpp
   src/kinematics/deformation_gradient.cpp
   src/kinematics/strain_measures.cpp
+  src/materials/material_base.cpp
   src/materials/ogden_hyperfoam.cpp
   src/materials/neo_hookean.cpp
+  src/material_point/uniaxial_test.cpp
   src/elements/quad4.cpp
   src/assembly/assembler.cpp
   src/solvers/linear_solver.cpp

@@ -66,17 +66,45 @@ datos) bajo la misma malla, el mismo elemento y el mismo solver. Por eso
 `elements/` y `assembly/` solo conocen `MaterialModel` (la interfaz en
 `materials/material_base.hpp`), nunca una clase concreta.
 
-## Por qué un tangente numérico es una opción legítima al principio
+## `tangent_moduli()` es el tangente LAGRANGIANO (dS/dE), no uno espacial
 
-Derivar a mano el tangente consistente de una energía tipo Ogden es
-tedioso y fácil de equivocar. Antes de confiar en una derivación
-analítica dentro de Newton-Raphson, vale la pena:
+Decisión tomada durante la implementación del Paso 1, tras un error real
+que vale la pena documentar en vez de esconder:
 
-1. Implementar y validar `cauchy_stress()` solo (más fácil de verificar).
-2. Obtener un tangente por diferencias finitas sobre `cauchy_stress()`
-   (más lento, pero correcto por construcción si el esfuerzo lo es).
-3. Usar ese tangente numérico como *referencia* para validar, con una
-   prueba unitaria, el tangente analítico una vez esté escrito.
+La primera versión de `tangent_moduli()` devolvía un tangente *espacial*
+(relacionando una tasa de esfuerzo de Cauchy con la tasa de deformación
+D), con la forma cerrada clásica c_ijkl = (λ/J)δδ + G(δδ+δδ). Al
+validarla con un tangente numérico (diferencias finitas directas sobre
+`cauchy_stress()`), **no coincidían**, y la discrepancia no era ruido
+numérico sino un error conceptual real: una diferencia finita simple
+sobre `cauchy_stress()` mide la tasa *simple* del esfuerzo de Cauchy,
+que difiere de la tasa *objetiva* (de Truesdell) -- la que esa fórmula
+cerrada en realidad relaciona con D -- en términos convectivos extra
+(D·σ + σ·D - tr(D)·σ) que no se anulan salvo que σ=0.
+
+En vez de corregir esa diferencia finita para que incorporara la
+corrección de Truesdell (viable, pero más propenso a errores de signo),
+se redefinió `tangent_moduli()` para devolver el tangente **lagrangiano**
+D = dS/dE (2do tensor de Piola-Kirchhoff respecto a la deformación de
+Green-Lagrange, ambos en la configuración de referencia). Esta cantidad
+no tiene ninguna ambigüedad de objetividad: S y E son invariantes ante
+una rotación superpuesta por construcción, así que la diferencia finita
+directa (perturbando C, reconstruyendo una F representativa vía raíz
+cuadrada simétrica de C, sin rotación) es correcta sin ningún término de
+corrección. Esto también encaja mejor con el plan para `Quad4Element`
+(Paso 2): una formulación Lagrangiana Total clásica (K = B_Lᵀ D B_L +
+rigidez geométrica a partir de S), que evita por completo la necesidad
+de una tasa objetiva en la implementación del elemento.
+
+`NeoHookean::tangent_moduli()` ahora tiene la forma cerrada lagrangiana
+correcta (derivada en el propio código, verificada a mano reduciéndola
+al caso C=I, donde debe coincidir con el tensor de elasticidad lineal
+isótropo estándar), cruzada contra `numerical_tangent_moduli()` en una
+prueba unitaria -- y ambas coinciden. `OgdenHyperfoam::tangent_moduli()`
+sigue usando el tangente numérico por defecto (ningún tangente analítico
+lagrangiano se ha derivado todavía para Ogden; es el siguiente candidato
+natural una vez que `Quad4Element` necesite uno más rápido que
+diferencias finitas).
 
 ## Decisiones que quedaron pendientes a propósito
 

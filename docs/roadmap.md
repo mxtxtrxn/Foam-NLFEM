@@ -5,39 +5,101 @@ quedar validado (con pruebas unitarias o contra datos publicados) antes
 de pasar al siguiente -- el objetivo es nunca tener que depurar la física
 del material y el solver de elementos finitos al mismo tiempo.
 
-## Paso 1 -- Modelo constitutivo sobre un solo elemento
+## Paso 1 -- Modelo constitutivo sobre un solo elemento ✅ (completado)
 
-- [ ] Implementar `OgdenHyperfoam::cauchy_stress()`:
-      descomponer F (o C = FᵀF) para obtener los estiramientos
-      principales λ₁, λ₂, λ₃ y las direcciones principales; evaluar
-      ∂W/∂λₖ por cada término de Ogden; reconstruir el tensor de
-      esfuerzos en la base cartesiana.
-- [ ] Validar esa función contra una curva de compresión uniaxial
-      conocida (analítica o de `data/experimental/`) usando
-      `make_single_hex_element()` con una deformación homogénea
-      prescrita directamente (sin pasar todavía por `Assembler`).
-- [ ] Implementar `OgdenHyperfoam::tangent_moduli()` y verificarlo con
-      diferencias finitas sobre `cauchy_stress()` (ver
-      `docs/architecture.md`, sección sobre el tangente numérico).
-- [ ] Reemplazar `apps/single_element_test.cpp` (hoy un *sanity check*
-      del solver con x²=2) por el test real de compresión homogénea.
+- [x] Implementar `OgdenHyperfoam::cauchy_stress()`: descomposición
+      espectral de B = FFᵀ (autovectores = direcciones principales
+      espaciales, autovalores = λₖ²) y la fórmula cerrada estándar de
+      Ogden hyperfoam, σₖ = Σᵢ (2μᵢ/(αᵢJ))(λₖ^αᵢ - J^(-αᵢβᵢ)).
+- [x] Validar de forma independiente (no solo contra sí misma):
+      `tests/test_materials.cpp` cruza el esfuerzo cerrado contra una
+      diferencia finita de `strain_energy()` (energía, no esfuerzo),
+      verifica objetividad (σ' = R σ Rᵀ bajo F → RF), y confirma el caso
+      especial β=0 (esfuerzo lateral exactamente cero sin estiramiento
+      lateral -- la propiedad de "Poisson efectivo cero").
+- [x] Implementar `OgdenHyperfoam::tangent_moduli()` -- vía
+      `numerical_tangent_moduli()` (diferencias finitas), no una forma
+      cerrada todavía. **Importante**: este tangente es el LAGRANGIANO
+      dS/dE, no uno espacial -- ver `docs/architecture.md` para el
+      porqué (un error real de la primera versión, no solo una
+      simplificación de alcance).
+- [x] En el camino: se construyó `foam/material_point/uniaxial_test.hpp`
+      -- un ensayo de compresión uniaxial *libre* (superficie lateral sin
+      confinar, no deformación uniaxial confinada) a nivel de un solo
+      punto material, resolviendo el estiramiento lateral de equilibrio
+      con el propio `NewtonRaphsonSolver` genérico. Esto generaliza
+      "validar sobre `make_single_hex_element()`" a algo reusable y
+      con pruebas propias (`tests/test_uniaxial.cpp`), sin esperar a
+      `Assembler`.
+- [x] Reemplazar `apps/single_element_test.cpp` (antes un *sanity check*
+      del solver con x²=2) por el ensayo real: dos espumas de Ogden
+      (β=0 y β=0.75) barridas hasta 70% de deformación de ingeniería,
+      con reporte de módulo tangente inicial, esfuerzo en 10%/40%/máxima
+      deformación, y estiramiento lateral -- confirma visualmente las
+      tres regiones (codo elástico, meseta, inicio de densificación).
 
-## Paso 2 -- Malla 2D/axisimétrica y solver no lineal completo
+**Pendiente opcional dentro de este mismo paso** (no bloquea el Paso 2):
+derivar una forma cerrada para `OgdenHyperfoam::tangent_moduli()`
+(lagrangiana, dS/dE) que reemplace el tangente numérico -- más rápido,
+pero más fácil de equivocar; el numérico seguirá sirviendo como
+referencia de validación una vez exista.
 
-- [ ] Implementar `compute_deformation_gradient()`.
-- [ ] Implementar `Quad4Element::internal_force()` /
-      `tangent_stiffness()` (cuadratura de Gauss 2x2).
-- [ ] Implementar `make_structured_grid_2d()`.
-- [ ] Implementar `Assembler::assemble_residual()` /
-      `assemble_tangent()`.
-- [ ] Implementar `Problem::run_compression_test()`, conectando
-      `Assembler` + `NewtonRaphsonSolver` (éste ya está implementado) con
-      un esquema de pasos de carga/desplazamiento.
-- [ ] Prueba de parche (*patch test*) estándar: un campo de deformación
-      uniforme debe reproducirse exactamente en la malla.
-- [ ] Validar la curva tensión-deformación resultante contra datos
-      experimentales reales de una espuma (PU, EPS, etc.) en
-      `data/experimental/`.
+**Parámetros usados**: μ=80 kPa, α=13, β∈{0, 0.75} -- *ilustrativos*,
+elegidos para producir la forma cualitativa correcta, no ajustados a un
+material real publicado. Ajustar contra datos experimentales reales
+sigue siendo el Paso 4.
+
+## Paso 2 -- Malla 2D y solver no lineal completo ✅ (completado)
+
+Formulación Lagrangiana Total, consistente con `tangent_moduli()` =
+dS/dE del Paso 1: fuerza interna vía S (2do Piola-Kirchhoff) y el
+operador deformación-desplazamiento no lineal B_L, rigidez = B_Lᵀ D B_L
+(parte material) + rigidez geométrica construida directamente de S. Sin
+necesidad de ninguna tasa de esfuerzo objetiva dentro del elemento.
+
+- [x] `compute_deformation_gradient()`: generalizado para dim=2 (con
+      embebido de deformación plana, F33=1) y dim=3.
+- [x] `second_piola_kirchhoff_stress()`: nueva utilidad pública en
+      `materials/material_base.hpp` (antes interna, usada solo por el
+      tangente numérico); ahora también la usa `Quad4Element`.
+- [x] `make_structured_grid_2d()`: malla estructurada de Quad4,
+      orientación CCW consistente con las funciones de forma.
+- [x] `Quad4Element::internal_force()` / `tangent_stiffness()`:
+      cuadratura de Gauss 2x2, B_L derivado y verificado a mano (ver
+      comentarios en `src/elements/quad4.cpp`), rigidez geométrica
+      derivada por separado.
+- [x] `Assembler::assemble_residual()` / `assemble_tangent()`: ensamblaje
+      estándar vía *scatter-add* / triplets.
+- [x] `Problem::run_compression_test()`: eliminación de grados de
+      libertad restringidos (Dirichlet), pasos de carga con
+      *continuation* (la solución convergida de un paso arranca el
+      siguiente), esfuerzo nominal vía fuerza de reacción en el borde
+      cargado. Incluye `uniaxial_compression_bcs()`, un helper para
+      montar las condiciones de frontera de un ensayo de compresión
+      libre sobre una malla estructurada.
+
+**Validaciones** (cada una más fuerte que la anterior):
+- Consistencia tangente↔fuerza por diferencias finitas a nivel de
+  elemento (`tests/test_quad4.cpp`) -- el análogo, para el elemento, del
+  chequeo que atrapó el bug del tangente en el Paso 1.
+- *Patch test* clásico: una deformación homogénea aplicada en toda la
+  malla da fuerza interna ≈0 en todo nodo interior
+  (`tests/test_assembler.cpp`).
+- **Cross-check de punta a punta**: un solo elemento Quad4, con los
+  desplazamientos nodales exactos de la solución de compresión libre del
+  Paso 1, da fuerza lateral ≈0 (ya que β=0 implica S22=0) y la fuerza
+  axial total en el borde cargado coincide con el esfuerzo nominal del
+  Paso 1 hasta precisión de máquina (`tests/test_quad4.cpp`).
+- **El mismo cross-check, pero con una malla completa** (3x6 elementos,
+  `Assembler`+`Problem` de punta a punta, no un solo elemento a mano):
+  coincide con el resultado del punto material del Paso 1 en cada
+  escalón de la curva, con diferencia ~0.00% (`tests/test_problem.cpp`,
+  `apps/mesh_compression_test.cpp`).
+
+**Pendiente, movido fuera de este paso**: la prueba de parche ya está
+hecha (ver arriba); validar contra datos experimentales reales de una
+espuma sigue siendo el Paso 4, ya que los parámetros usados aquí siguen
+siendo ilustrativos (ver nota del Paso 1).
 
 ## Paso 3 -- Inestabilidades y meseta de colapso
 

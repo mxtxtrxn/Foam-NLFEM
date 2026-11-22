@@ -38,4 +38,16 @@ class Problem {
   NeumannBCs neumann_bcs_;
 };
 
+// Builds the DirichletBCs for a free (unconfined) uniaxial compression
+// test on a make_structured_grid_2d(width, height, nx, ny) mesh: every
+// bottom-row node has y=0, every top-row node has y=top_y_displacement
+// (a single flat rigid platen -- same target everywhere), and the
+// bottom-left corner's x is pinned (removes rigid-body translation;
+// the y-constraints on every node of two full rows already rule out
+// rigid rotation, so a single x-pin is enough -- see
+// docs/architecture.md). Both edges are left otherwise free in x, so
+// the specimen can bulge/contract laterally exactly as in
+// foam::uniaxial_compression_curve()'s single-material-point test.
+DirichletBCs uniaxial_compression_bcs(int nx, int ny, Real top_y_displacement);
+
 }  // namespace foam

@@ -27,6 +27,10 @@ class FiniteElement {
 
   // Element-level tangent stiffness (material + geometric parts),
   // consistent with internal_force for quadratic Newton convergence.
+  // Since MaterialModel::tangent_moduli() is the Lagrangian dS/dE (see
+  // docs/architecture.md), this should be built as a Total Lagrangian
+  // stiffness: B_L^T * tangent_moduli * B_L (material part) plus the
+  // usual geometric-stiffness term built directly from S.
   virtual MatrixX tangent_stiffness(const MatrixX& reference_positions,
                                      const MatrixX& nodal_displacements,
                                      const MaterialModel& material) const = 0;

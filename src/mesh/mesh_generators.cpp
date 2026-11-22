@@ -20,10 +20,37 @@ Mesh make_single_hex_element() {
   return mesh;
 }
 
-Mesh make_structured_grid_2d(Real /*width*/, Real /*height*/, int /*nx*/, int /*ny*/) {
-  // TODO(roadmap step 2): generate a structured Quad4 grid for the
-  // 2D / axisymmetric compression-specimen case.
-  throw std::logic_error("make_structured_grid_2d: not implemented yet");
+Mesh make_structured_grid_2d(Real width, Real height, int nx, int ny) {
+  if (nx < 1 || ny < 1) {
+    throw std::invalid_argument("make_structured_grid_2d: nx and ny must be >= 1");
+  }
+
+  Mesh mesh;
+
+  // Node (i,j), i=0..nx, j=0..ny, at (i*dx, j*dy, 0), indexed row-major
+  // as j*(nx+1)+i. This indexing is relied on below when building each
+  // element's connectivity, and gives the id Mesh::add_node assigns
+  // (ids are handed out in call order, 0, 1, 2, ...).
+  Real dx = width / nx;
+  Real dy = height / ny;
+  for (int j = 0; j <= ny; ++j) {
+    for (int i = 0; i <= nx; ++i) {
+      mesh.add_node(Vector3(i * dx, j * dy, 0.0));
+    }
+  }
+
+  auto node_id = [nx](int i, int j) { return static_cast<std::size_t>(j * (nx + 1) + i); };
+
+  // Bottom-left, bottom-right, top-right, top-left (CCW), matching the
+  // Quad4 shape-function node ordering Quad4Element uses.
+  for (int j = 0; j < ny; ++j) {
+    for (int i = 0; i < nx; ++i) {
+      mesh.add_element(ElementType::kQuad4, {node_id(i, j), node_id(i + 1, j),
+                                              node_id(i + 1, j + 1), node_id(i, j + 1)});
+    }
+  }
+
+  return mesh;
 }
 
 }  // namespace foam

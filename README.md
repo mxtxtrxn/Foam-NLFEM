@@ -9,34 +9,47 @@ lineal).
 
 ## Estado actual
 
-Este es un **esqueleto compilable**, no una implementación terminada.
-Cada pieza está en uno de dos estados:
+**Pasos 1 y 2 de la hoja de ruta están completos**: hay un pipeline de
+elementos finitos no lineales de punta a punta (malla → elemento →
+ensamblaje → Newton-Raphson con condiciones de frontera) que reproduce
+exactamente el resultado de un ensayo de un solo punto material.
 
-- **Implementada de verdad**: `Mesh`/`Node`/`ElementConnectivity`,
-  `make_single_hex_element()`, `principal_invariants()`,
-  `jacobian_determinant()`, `green_lagrange_strain()`,
-  `NeoHookean::cauchy_stress()`, `LinearSolver` (wrapper sobre
-  `Eigen::SparseLU`), `NewtonRaphsonSolver` (iteración genérica,
-  desacoplada de la física vía `std::function`), `write_csv()`.
-- **Declarada con `TODO` explícito** (lanzan `std::logic_error` si se
-  llaman): `OgdenHyperfoam::cauchy_stress/tangent_moduli`,
-  `NeoHookean::tangent_moduli`, `compute_deformation_gradient()`,
-  `Quad4Element`, `Assembler`, `ArcLengthSolver`,
-  `Problem::run_compression_test()`, `write_vtk()`,
-  `make_structured_grid_2d()`.
+- **Implementada y validada**: todo lo del Paso 1 (ver `docs/roadmap.md`
+  para el detalle), más -- del Paso 2 -- `compute_deformation_gradient()`
+  (2D con embebido de deformación plana, y 3D),
+  `second_piola_kirchhoff_stress()` (nueva utilidad pública),
+  `make_structured_grid_2d()`, **`Quad4Element`** (formulación
+  Lagrangiana Total completa: fuerza interna + rigidez material +
+  rigidez geométrica), **`Assembler`** (ensamblaje estándar vía
+  *scatter-add*), y **`Problem::run_compression_test()`** (eliminación
+  de grados de libertad Dirichlet, pasos de carga con *continuation*).
+- **Declarada con `TODO` explícito**: `ArcLengthSolver` (Paso 3),
+  `write_vtk()` (Paso 4, opcional).
 
-Ver `docs/roadmap.md` para el orden recomendado en el que cerrar esos
-`TODO`.
+**Nota importante sobre `tangent_moduli()`**: es el tangente
+LAGRANGIANO dS/dE (2do Piola-Kirchhoff respecto a Green-Lagrange), no
+un tangente espacial sobre el esfuerzo de Cauchy. La primera versión
+intentó esto último y tenía un error real (confundía la tasa simple con
+la tasa objetiva de Truesdell); ver `docs/architecture.md` para el
+detalle completo. `Quad4Element` (Paso 2) ya está formulado como
+Lagrangiano Total para ser consistente con esta definición -- vale la
+pena leer esa nota antes de modificar su código.
+
+Ver `docs/roadmap.md` para el detalle de lo hecho y el orden
+recomendado para el resto.
 
 ## Dependencias
 
 - CMake ≥ 3.16
 - Compilador C++17 (probado con GCC 13)
-- Eigen3 ≥ 3.3. Si no hay una instalación de sistema, CMake usa
-  automáticamente la copia header-only vendorizada en `external/eigen/`
-  (Eigen 3.4.0, licencia MPL-2.0). No se necesita `apt-get`, vcpkg ni conan.
+- Eigen3 ≥ 3.3
+  - Ubuntu/Debian: `sudo apt install libeigen3-dev`
+  - macOS: `brew install eigen`
+  - o vía vcpkg/conan si prefieres un gestor de paquetes
+  - si no está instalado, CMake usa la copia vendorizada en
+    `external/eigen` (Eigen 3.4.0, MPL-2.0)
 - doctest (framework de pruebas) — **ya viene incluido** como header
-  único en `external/doctest/doctest.h` (v2.4.11, vendorizado, MIT), no hay
+  único en `external/doctest/doctest.h` (v2.4.11, vendorizado), no hay
   que instalarlo aparte.
 
 ## Compilar y correr
@@ -49,9 +62,19 @@ cmake --build . -j
 # correr las pruebas unitarias
 ctest --output-on-failure
 
-# correr el ejecutable de ejemplo (sanity check del solver, aún no la
-# física de la espuma -- ver docs/roadmap.md)
+# correr el ejecutable de ejemplo: valida OgdenHyperfoam con un ensayo
+# de compresión uniaxial libre (dos variantes, beta=0 y beta=0.75),
+# imprime módulo tangente inicial / esfuerzo a 10%-40%-70% de
+# deformación, y escribe foam_beta0_curve.csv / foam_beta_pos_curve.csv
 ./apps/single_element_test
+
+# correr el ensayo de compresión sobre una malla 2D real (Paso 2):
+# compara, escalón a escalón, contra el resultado de un solo punto
+# material (Paso 1) -- deberían coincidir casi exactamente
+./apps/mesh_compression_test
+
+# graficar una curva (opcional, requiere matplotlib)
+python3 ../../scripts/plot_stress_strain.py apps/foam_beta0_curve.csv
 ```
 
 ## Estructura del repositorio
@@ -62,6 +85,8 @@ include/foam/        # headers públicos, organizados por capa
   mesh/               # Node, ElementConnectivity, Mesh, generadores de malla
   kinematics/         # gradiente de deformación, medidas de deformación
   materials/          # MaterialModel (interfaz), OgdenHyperfoam, NeoHookean
+  material_point/     # ensayos a nivel de un solo punto material (sin malla):
+                       # uniaxial_test.hpp, usado para validar el Paso 1
   elements/           # FiniteElement (interfaz), Quad4Element
   assembly/           # Assembler: malla + elemento + material -> sistema global
   boundary_conditions/# DirichletBC, NeumannBC (datos puros)
@@ -92,7 +117,6 @@ demás.
 
 ## Licencia
 
-MIT (ver `LICENSE`). El código es propiedad del autor y no está ligado a
-ninguna institución ni empleador. Los componentes vendorizados conservan
-sus propias licencias: doctest es MIT y Eigen es MPL-2.0 (ver los avisos
-en `LICENSE` y en `external/eigen/`).
+MIT (ver `LICENSE`). El header vendorizado en
+`external/doctest/doctest.h` mantiene su propia licencia MIT
+(Copyright (c) 2016-2023 Viktor Kirilov).

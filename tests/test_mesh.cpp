@@ -35,6 +35,32 @@ TEST_CASE("make_single_hex_element produces 8 nodes and one Hex8 element") {
   }
 }
 
-TEST_CASE("make_structured_grid_2d is a documented not-yet-implemented stub") {
-  CHECK_THROWS_AS(foam::make_structured_grid_2d(1.0, 1.0, 2, 2), std::logic_error);
+TEST_CASE("make_structured_grid_2d: correct node/element counts and corner positions") {
+  auto mesh = foam::make_structured_grid_2d(/*width=*/2.0, /*height=*/1.0, /*nx=*/2, /*ny=*/3);
+
+  CHECK(mesh.num_nodes() == 3 * 4);  // (nx+1)*(ny+1)
+  CHECK(mesh.num_elements() == 2 * 3);  // nx*ny
+
+  // Corner nodes, by construction node_id(i,j) = j*(nx+1)+i.
+  CHECK(mesh.nodes()[0].reference_position().isApprox(foam::Vector3(0.0, 0.0, 0.0)));  // (0,0)
+  CHECK(mesh.nodes()[2].reference_position().isApprox(foam::Vector3(2.0, 0.0, 0.0)));  // (nx,0)
+  CHECK(mesh.nodes()[9].reference_position().isApprox(foam::Vector3(0.0, 1.0, 0.0)));  // (0,ny)
+  CHECK(mesh.nodes()[11].reference_position().isApprox(foam::Vector3(2.0, 1.0, 0.0)));  // (nx,ny)
+
+  // All elements are Quad4 with 4 distinct node ids, CCW starting
+  // bottom-left (matches Quad4Element's shape-function convention).
+  for (const auto& elem : mesh.elements()) {
+    CHECK(elem.type == foam::ElementType::kQuad4);
+    REQUIRE(elem.node_ids.size() == 4);
+    for (int a = 0; a < 4; ++a) {
+      for (int b = a + 1; b < 4; ++b) {
+        CHECK(elem.node_ids[a] != elem.node_ids[b]);
+      }
+    }
+  }
+}
+
+TEST_CASE("make_structured_grid_2d: rejects nx or ny < 1") {
+  CHECK_THROWS_AS(foam::make_structured_grid_2d(1.0, 1.0, 0, 2), std::invalid_argument);
+  CHECK_THROWS_AS(foam::make_structured_grid_2d(1.0, 1.0, 2, 0), std::invalid_argument);
 }

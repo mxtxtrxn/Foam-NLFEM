@@ -32,6 +32,14 @@ class OgdenHyperfoam : public MaterialModel {
   Matrix3 cauchy_stress(const Matrix3& F) const override;
   Matrix6 tangent_moduli(const Matrix3& F) const override;
 
+  // W(lambda1, lambda2, lambda3), evaluated directly from the strain
+  // energy function. Exposed publicly (not just an implementation
+  // detail of cauchy_stress) because it's independently useful: e.g. to
+  // cross-check cauchy_stress() against a finite-difference derivative
+  // of the energy itself, as an implementation-independent validation
+  // (see tests/test_materials.cpp).
+  Real strain_energy(const Vector3& stretches) const;
+
   const std::vector<Term>& terms() const { return terms_; }
 
  private:

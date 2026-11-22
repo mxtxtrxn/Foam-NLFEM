@@ -16,8 +16,12 @@ class Assembler {
   Assembler(const Mesh& mesh, const FiniteElement& element_formulation,
             const MaterialModel& material, int dofs_per_node);
 
-  // Global residual: R(u) = F_internal(u) - F_external. Returned vector
-  // has size mesh.num_dofs(dofs_per_node).
+  // Global INTERNAL force vector F_internal(u) (despite the name --
+  // kept for API stability with how this was first declared). Returned
+  // vector has size mesh.num_dofs(dofs_per_node). Deliberately does NOT
+  // subtract external forces or do anything with Dirichlet BCs: both
+  // are Problem's responsibility, so Assembler's job stays narrowly
+  // "FEM assembly" with no boundary-condition policy baked in.
   VectorX assemble_residual(const VectorX& global_displacements) const;
 
   // Global tangent stiffness, assembled as a sparse matrix (most entries

@@ -1,2 +1,5 @@
 add_executable(single_element_test single_element_test.cpp)
 target_link_libraries(single_element_test PRIVATE foam_core)
+
+add_executable(mesh_compression_test mesh_compression_test.cpp)
+target_link_libraries(mesh_compression_test PRIVATE foam_core)

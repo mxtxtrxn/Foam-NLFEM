@@ -3,3 +3,6 @@ target_link_libraries(single_element_test PRIVATE foam_core)
 
 add_executable(mesh_compression_test mesh_compression_test.cpp)
 target_link_libraries(mesh_compression_test PRIVATE foam_core)
+
+add_executable(snap_through_demo snap_through_demo.cpp)
+target_link_libraries(snap_through_demo PRIVATE foam_core)

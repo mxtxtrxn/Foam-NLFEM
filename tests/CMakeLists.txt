@@ -9,6 +9,7 @@ add_executable(foam_tests
   test_quad4.cpp
   test_assembler.cpp
   test_problem.cpp
+  test_arc_length.cpp
 )
 
 target_link_libraries(foam_tests PRIVATE foam_core)

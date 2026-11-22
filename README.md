@@ -9,22 +9,25 @@ lineal).
 
 ## Estado actual
 
-**Pasos 1 y 2 de la hoja de ruta están completos**: hay un pipeline de
-elementos finitos no lineales de punta a punta (malla → elemento →
+**Pasos 1, 2 y 3 de la hoja de ruta están completos.** Hay un pipeline
+de elementos finitos no lineales de punta a punta (malla → elemento →
 ensamblaje → Newton-Raphson con condiciones de frontera) que reproduce
-exactamente el resultado de un ensayo de un solo punto material.
+exactamente el resultado de un ensayo de un solo punto material, más un
+solver de longitud de arco para cuando haga falta trazar inestabilidades
+que el control de desplazamiento puro no pueda seguir.
 
-- **Implementada y validada**: todo lo del Paso 1 (ver `docs/roadmap.md`
-  para el detalle), más -- del Paso 2 -- `compute_deformation_gradient()`
-  (2D con embebido de deformación plana, y 3D),
-  `second_piola_kirchhoff_stress()` (nueva utilidad pública),
-  `make_structured_grid_2d()`, **`Quad4Element`** (formulación
-  Lagrangiana Total completa: fuerza interna + rigidez material +
-  rigidez geométrica), **`Assembler`** (ensamblaje estándar vía
-  *scatter-add*), y **`Problem::run_compression_test()`** (eliminación
-  de grados de libertad Dirichlet, pasos de carga con *continuation*).
-- **Declarada con `TODO` explícito**: `ArcLengthSolver` (Paso 3),
-  `write_vtk()` (Paso 4, opcional).
+- **Implementada y validada**: todo lo de los Pasos 1 y 2 (ver
+  `docs/roadmap.md` para el detalle), más -- del Paso 3 --
+  **`ArcLengthSolver`** (Riks/Wempner, interfaz genérica vía ∂R/∂λ por
+  diferencias finitas, reducción automática de paso ante un fallo).
+  Validado contra un problema con solución cerrada conocida (curva S
+  clásica de snap-through), no contra el modelo de espuma: se verificó
+  primero que el material ilustrativo usado hasta ahora **no tiene
+  ablandamiento real** (la rigidez baja mucho en la meseta pero nunca
+  cruza a negativo), así que el Newton-Raphson con control de
+  desplazamiento del Paso 2 ya le basta -- ver la nota completa en
+  `docs/roadmap.md`, Paso 3.
+- **Declarado con `TODO` explícito**: `write_vtk()` (Paso 4, opcional).
 
 **Nota importante sobre `tangent_moduli()`**: es el tangente
 LAGRANGIANO dS/dE (2do Piola-Kirchhoff respecto a Green-Lagrange), no
@@ -72,6 +75,11 @@ ctest --output-on-failure
 # compara, escalón a escalón, contra el resultado de un solo punto
 # material (Paso 1) -- deberían coincidir casi exactamente
 ./apps/mesh_compression_test
+
+# demo de ArcLengthSolver (Paso 3) sobre la curva S clásica de
+# snap-through: muestra que el control de carga puro falla justo en el
+# punto límite, y que la longitud de arco traza la curva completa
+./apps/snap_through_demo
 
 # graficar una curva (opcional, requiere matplotlib)
 python3 ../../scripts/plot_stress_strain.py apps/foam_beta0_curve.csv

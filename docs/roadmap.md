@@ -101,14 +101,49 @@ hecha (ver arriba); validar contra datos experimentales reales de una
 espuma sigue siendo el Paso 4, ya que los parámetros usados aquí siguen
 siendo ilustrativos (ver nota del Paso 1).
 
-## Paso 3 -- Inestabilidades y meseta de colapso
+## Paso 3 -- Inestabilidades y meseta de colapso ✅ (completado, con una advertencia honesta)
 
-- [ ] Implementar `ArcLengthSolver` (Riks) una vez que Newton-Raphson
-      puro empiece a fallar de verdad en la meseta (no antes -- es más
-      fácil depurar longitud de arco cuando ya se sabe que todo lo demás
-      funciona).
-- [ ] Comparar la curva con y sin longitud de arco para confirmar que
-      ambas coinciden donde Newton-Raphson puro sí converge.
+- [x] **Antes de implementar nada**: se verificó numéricamente que el
+      material de Ogden hyperfoam usado hasta ahora (μ=80 kPa, α=13,
+      β=0) **no tiene ablandamiento real** -- la rigidez tangente local
+      baja mucho en la meseta pero nunca cruza a negativo (mínimo
+      verificado ≈ -4.5e6, siempre del signo esperado, en todo el rango
+      de deformación barrido). Es decir: con estos parámetros, el
+      Newton-Raphson con control de desplazamiento del Paso 2 ya basta;
+      no hay snap-through real que forzar.
+- [x] `ArcLengthSolver` implementado de todas formas, con una decisión
+      de diseño importante: **se rediseñó la interfaz** respecto a la
+      declaración original del Paso 1 (que asumía control de carga puro,
+      R(u,λ)=F_int(u)-λ·F_ref). En vez de eso, toma R(u,λ) como una
+      función abstracta y calcula ∂R/∂λ internamente por diferencias
+      finitas -- mismo espíritu que `numerical_tangent_moduli()` -- lo
+      cual funciona igual de bien para control de carga que para control
+      de desplazamiento (que es lo que usa `Problem`), sin que el solver
+      necesite saber cuál de los dos es.
+- [x] Método: Riks/Wempner de "plano normal" (constraint lineal, no la
+      esférica exacta de Crisfield con selección de raíz cuadrática --
+      más simple de implementar correctamente, con el mismo resultado en
+      la práctica). Con reducción automática de paso ante un fallo
+      (`max_retries_per_step`), una mejora de robustez estándar.
+- [x] **Validado contra un problema con solución cerrada conocida**
+      (no contra el modelo de espuma, que no tiene inestabilidad que
+      exhibir -- ver arriba): R(u,λ)=u³-3u-λ=0, cuya forma cerrada
+      λ(u)=u³-3u es la curva S clásica de snap-through, con puntos
+      límite en u=-1 (λ=2) y u=+1 (λ=-2). El solver traza la curva
+      completa, incluida la rama inestable entre ambos puntos límite,
+      coincidiendo con la forma cerrada hasta la tolerancia de Newton en
+      cada paso. Como contraste, `apps/snap_through_demo` muestra que un
+      Newton-Raphson con control de carga puro (el `NewtonRaphsonSolver`
+      del Paso 1, incrementando λ de forma monótona) efectivamente falla
+      al llegar al punto límite (λ≈2).
+
+**Pendiente, honestamente fuera de alcance por ahora**: no se aplicó
+`ArcLengthSolver` al modelo de espuma real, porque los parámetros
+actuales no lo necesitan (ver arriba). Para una demostración foam-a-foam
+de esto haría falta o bien una ley de material con ablandamiento real, o
+bien una malla fina donde aparezca pandeo/localización geométrica --
+cualquiera de las dos es un paso natural pero no trivial, no forzado
+aquí para evitar un ejemplo artificioso.
 
 ## Paso 4 (opcional, en función de hacia dónde quieras llevar el proyecto)
 
